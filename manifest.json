@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "Minesweeper Online Helper",
+  "version": "0.1.0",
+  "description": "Overlay hints for minesweeper.online with hotkeys and probability visualization.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://minesweeper.online/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://minesweeper.online/*"],
+      "js": ["content-script.js"],
+      "css": ["styles.css"]
+    }
+  ],
+  "options_page": "options.html"
+}
