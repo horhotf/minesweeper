@@ -1,0 +1,27 @@
+.ms-helper-overlay {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  pointer-events: none;
+  z-index: 9999;
+}
+
+.ms-helper-cell-overlay {
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 12px;
+  font-weight: 600;
+  color: #111;
+  border-radius: 4px;
+  box-sizing: border-box;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+}
+
+.ms-helper-cell-overlay span {
+  text-shadow: 0 1px 1px rgba(255, 255, 255, 0.7);
+}
