@@ -101,7 +101,6 @@ const parseCellId = (cellId) => {
   if (!match) return null;
   return { row: Number(match[2]), col: Number(match[1]) };
 };
-
 const locateGrid = () => {
   const board =
     document.querySelector("#game") ||
@@ -211,7 +210,7 @@ const analyzeBoard = () => {
       const { cell, row: rowIndex, col } = entry;
       const state = getCellState(cell);
       if (state !== "open-number") return;
-
+      
       const number = getCellNumber(cell);
       if (!Number.isFinite(number) || number < 0) return;
 
