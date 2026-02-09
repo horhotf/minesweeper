@@ -4,9 +4,9 @@ const DEFAULT_SETTINGS = {
 };
 
 const KEYBINDINGS = {
-  highlightMines: { altKey: true, shiftKey: true, code: "KeyM" },
-  showProbabilities: { altKey: true, shiftKey: true, code: "KeyP" },
-  highlightSafe: { altKey: true, shiftKey: true, code: "KeyS" },
+  highlightMines: { altKey: true, shiftKey: true, code: "Digit1" },
+  showProbabilities: { altKey: true, shiftKey: true, code: "Digit2" },
+  highlightSafe: { altKey: true, shiftKey: true, code: "Digit3" },
 };
 
 let settings = { ...DEFAULT_SETTINGS };
@@ -41,23 +41,52 @@ const clearOverlay = () => {
   overlayContainer.innerHTML = "";
 };
 
-const isNumberCell = (cell) => {
+const parseNumberFromClass = (className) => {
+  if (!className) return null;
+  const match = className.match(/(?:type|open|number)([0-8])/i);
+  if (match) return Number(match[1]);
+  return null;
+};
+
+const getCellNumber = (cell) => {
   const text = cell.textContent.trim();
-  if (!text) return false;
-  return Number.isInteger(Number(text));
+  if (text && Number.isInteger(Number(text))) {
+    return Number(text);
+  }
+  const datasetValue = cell.dataset.value ?? cell.getAttribute("data-value");
+  if (datasetValue && Number.isInteger(Number(datasetValue))) {
+    return Number(datasetValue);
+  }
+  const classValue = parseNumberFromClass(cell.className);
+  if (Number.isInteger(classValue)) {
+    return classValue;
+  }
+  return null;
 };
 
 const getCellState = (cell) => {
   const classList = cell.className;
   const text = cell.textContent.trim();
 
-  if (classList.includes("flag") || classList.includes("marked") || text === "🚩") {
+  if (
+    classList.includes("flag") ||
+    classList.includes("flagged") ||
+    classList.includes("marked") ||
+    text === "🚩"
+  ) {
     return "flag";
   }
-  if (classList.includes("closed") || classList.includes("unopened") || classList.includes("blank")) {
+  if (
+    classList.includes("closed") ||
+    classList.includes("unopened") ||
+    classList.includes("blank") ||
+    classList.includes("covered") ||
+    cell.dataset.state === "closed" ||
+    cell.getAttribute("data-state") === "closed"
+  ) {
     return "closed";
   }
-  if (isNumberCell(cell)) {
+  if (Number.isInteger(getCellNumber(cell))) {
     return "open-number";
   }
   if (classList.includes("open") || classList.includes("opened")) {
@@ -66,13 +95,48 @@ const getCellState = (cell) => {
   return "unknown";
 };
 
+const parseCellId = (cellId) => {
+  if (!cellId) return null;
+  const match = cellId.match(/cell[_-](\d+)[_-](\d+)/i);
+  if (!match) return null;
+  return { row: Number(match[2]), col: Number(match[1]) };
+};
 const locateGrid = () => {
   const board =
     document.querySelector("#game") ||
     document.querySelector("#board") ||
     document.querySelector(".game") ||
     document.querySelector(".board") ||
-    document.querySelector(".minesweeper");
+    document.querySelector(".minesweeper") ||
+    document.querySelector("#AreaBlock") ||
+    document.querySelector("#area");
+
+  const candidateCells = Array.from(
+    document.querySelectorAll("[id^='cell_'], [data-x][data-y], [data-row][data-col]")
+  );
+  if (candidateCells.length) {
+    const cellsByRow = new Map();
+    candidateCells.forEach((cell) => {
+      const parsedId = parseCellId(cell.id);
+      const row = Number(
+        parsedId?.row ?? cell.dataset.row ?? cell.dataset.y ?? cell.getAttribute("data-row")
+      );
+      const col = Number(
+        parsedId?.col ?? cell.dataset.col ?? cell.dataset.x ?? cell.getAttribute("data-col")
+      );
+      if (Number.isFinite(row) && Number.isFinite(col)) {
+        if (!cellsByRow.has(row)) {
+          cellsByRow.set(row, []);
+        }
+        cellsByRow.get(row).push({ cell, row, col });
+      }
+    });
+    if (cellsByRow.size) {
+      return Array.from(cellsByRow.keys())
+        .sort((a, b) => a - b)
+        .map((row) => cellsByRow.get(row).sort((a, b) => a.col - b.col));
+    }
+  }
 
   if (!board) return null;
 
@@ -84,13 +148,14 @@ const locateGrid = () => {
     });
   }
 
-  const flatCells = Array.from(board.querySelectorAll(".cell"));
+  const flatCells = Array.from(board.querySelectorAll(".cell, td, div"));
   if (!flatCells.length) return null;
 
   const cellsByRow = new Map();
   flatCells.forEach((cell) => {
-    const row = Number(cell.dataset.row ?? cell.dataset.y ?? cell.getAttribute("data-row"));
-    const col = Number(cell.dataset.col ?? cell.dataset.x ?? cell.getAttribute("data-col"));
+    const parsedId = parseCellId(cell.id);
+    const row = Number(parsedId?.row ?? cell.dataset.row ?? cell.dataset.y ?? cell.getAttribute("data-row"));
+    const col = Number(parsedId?.col ?? cell.dataset.col ?? cell.dataset.x ?? cell.getAttribute("data-col"));
     if (Number.isFinite(row) && Number.isFinite(col)) {
       if (!cellsByRow.has(row)) {
         cellsByRow.set(row, []);
@@ -145,8 +210,8 @@ const analyzeBoard = () => {
       const { cell, row: rowIndex, col } = entry;
       const state = getCellState(cell);
       if (state !== "open-number") return;
-
-      const number = Number(cell.textContent.trim());
+      
+      const number = getCellNumber(cell);
       if (!Number.isFinite(number) || number < 0) return;
 
       const neighbors = getNeighbors(grid, rowIndex, col);
