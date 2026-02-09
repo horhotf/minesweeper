@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Minesweeper Helper Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <main class="container">
+      <h1>Настройки Minesweeper Helper</h1>
+      <section class="card">
+        <div class="row">
+          <div>
+            <h2>Режим «Эффективность»</h2>
+            <p>
+              В режиме эффективности подсветка вероятностей сосредоточена на клетках с высоким
+              или низким риском, чтобы ускорить принятие решений.
+            </p>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="efficiencyMode" />
+            <span class="slider"></span>
+          </label>
+        </div>
+      </section>
+      <section class="card">
+        <h2>Горячие клавиши</h2>
+        <ul>
+          <li><strong>Alt + Shift + M</strong> — подсветить мины</li>
+          <li><strong>Alt + Shift + P</strong> — показать вероятности</li>
+          <li><strong>Alt + Shift + S</strong> — подсветить безопасные клетки</li>
+        </ul>
+        <p class="hint">Комбинации подобраны так, чтобы не пересекаться с горячими клавишами Chrome.</p>
+      </section>
+    </main>
+    <script src="options.js"></script>
+  </body>
+</html>
