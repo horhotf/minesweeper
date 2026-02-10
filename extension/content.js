@@ -92,6 +92,7 @@ const getCellState = (cell) => {
     classList.includes("flag") ||
     classList.includes("flagged") ||
     classList.includes("marked") ||
+    classList.includes("hd_flag") ||
     text === "🚩"
   ) {
     return "flag";
@@ -101,6 +102,7 @@ const getCellState = (cell) => {
     classList.includes("unopened") ||
     classList.includes("blank") ||
     classList.includes("covered") ||
+    classList.includes("hd_closed") ||
     cell.dataset.state === "closed" ||
     cell.getAttribute("data-state") === "closed"
   ) {
@@ -117,9 +119,47 @@ const getCellState = (cell) => {
 
 const parseCellId = (cellId) => {
   if (!cellId) return null;
-  const match = cellId.match(/cell[_-](\d+)[_-](\d+)/i);
-  if (!match) return null;
-  return { row: Number(match[2]), col: Number(match[1]) };
+  const direct = cellId.match(/cell[_-](\d+)[_-](\d+)$/i);
+  if (direct) {
+    return { first: Number(direct[1]), second: Number(direct[2]) };
+  }
+  const nums = cellId.match(/\d+/g);
+  if (!nums || nums.length < 2) return null;
+  return { first: Number(nums[0]), second: Number(nums[1]) };
+};
+
+const chooseCoordinateOrientation = (points, meta) => {
+  if (!points.length) return null;
+  const variants = [
+    { row: "first", col: "second" },
+    { row: "second", col: "first" },
+  ];
+
+  const scoreVariant = (variant) => {
+    let score = 0;
+    const rows = new Set();
+    const cols = new Set();
+    let maxRow = 0;
+    let maxCol = 0;
+    points.forEach((point) => {
+      const row = Number(point[variant.row]);
+      const col = Number(point[variant.col]);
+      rows.add(row);
+      cols.add(col);
+      maxRow = Math.max(maxRow, row);
+      maxCol = Math.max(maxCol, col);
+    });
+
+    if (meta?.height && Math.abs(rows.size - meta.height) <= 1) score += 3;
+    if (meta?.width && Math.abs(cols.size - meta.width) <= 1) score += 3;
+    if (meta?.height && Math.abs(maxRow + 1 - meta.height) <= 1) score += 2;
+    if (meta?.width && Math.abs(maxCol + 1 - meta.width) <= 1) score += 2;
+    score += rows.size > 1 ? 1 : 0;
+    score += cols.size > 1 ? 1 : 0;
+    return score;
+  };
+
+  return variants.sort((a, b) => scoreVariant(b) - scoreVariant(a))[0];
 };
 
 const findBoardElement = () =>
@@ -133,20 +173,77 @@ const findBoardElement = () =>
 
 const locateGrid = () => {
   const board = findBoardElement();
+  const meta = getGameMeta();
 
-  const candidateCells = Array.from(
-    document.querySelectorAll("[id^='cell_'], [data-x][data-y], [data-row][data-col]")
-  );
+  const candidateCells = Array.from(document.querySelectorAll("[id^='cell_'], [data-x][data-y], [data-row][data-col]"));
   if (candidateCells.length) {
+    const rectEntries = candidateCells
+      .map((cell) => {
+        const rect = cell.getBoundingClientRect();
+        return { cell, rect };
+      })
+      .filter(({ rect }) => rect.width > 0 && rect.height > 0);
+
+    if (rectEntries.length) {
+      const groupByAxis = (values) => {
+        const groups = [];
+        const sorted = values.slice().sort((a, b) => a - b);
+        const threshold = 3;
+        sorted.forEach((value) => {
+          const current = groups[groups.length - 1];
+          if (!current || Math.abs(current.center - value) > threshold) {
+            groups.push({ center: value, count: 1 });
+          } else {
+            current.center = (current.center * current.count + value) / (current.count + 1);
+            current.count += 1;
+          }
+        });
+        return groups.map((group) => group.center);
+      };
+
+      const rowsAxis = groupByAxis(rectEntries.map(({ rect }) => rect.top));
+      const colsAxis = groupByAxis(rectEntries.map(({ rect }) => rect.left));
+      if (rowsAxis.length > 1 && colsAxis.length > 1) {
+        const nearestIndex = (axis, value) => {
+          let bestIndex = 0;
+          let bestDistance = Infinity;
+          axis.forEach((candidate, index) => {
+            const distance = Math.abs(candidate - value);
+            if (distance < bestDistance) {
+              bestDistance = distance;
+              bestIndex = index;
+            }
+          });
+          return bestIndex;
+        };
+
+        const cellsByRow = new Map();
+        rectEntries.forEach(({ cell, rect }) => {
+          const row = nearestIndex(rowsAxis, rect.top);
+          const col = nearestIndex(colsAxis, rect.left);
+          if (!cellsByRow.has(row)) {
+            cellsByRow.set(row, []);
+          }
+          cellsByRow.get(row).push({ cell, row, col });
+        });
+
+        return Array.from(cellsByRow.keys())
+          .sort((a, b) => a - b)
+          .map((row) => cellsByRow.get(row).sort((a, b) => a.col - b.col));
+      }
+    }
+
+    const orientationProbe = candidateCells
+      .map((cell) => parseCellId(cell.id) || null)
+      .filter(Boolean)
+      .slice(0, 300);
+    const orientation = chooseCoordinateOrientation(orientationProbe, meta);
+
     const cellsByRow = new Map();
     candidateCells.forEach((cell) => {
       const parsedId = parseCellId(cell.id);
-      const row = Number(
-        parsedId?.row ?? cell.dataset.row ?? cell.dataset.y ?? cell.getAttribute("data-row")
-      );
-      const col = Number(
-        parsedId?.col ?? cell.dataset.col ?? cell.dataset.x ?? cell.getAttribute("data-col")
-      );
+      const row = Number(parsedId ? parsedId[orientation?.row || "second"] : cell.dataset.row ?? cell.dataset.y ?? cell.getAttribute("data-row"));
+      const col = Number(parsedId ? parsedId[orientation?.col || "first"] : cell.dataset.col ?? cell.dataset.x ?? cell.getAttribute("data-col"));
       if (Number.isFinite(row) && Number.isFinite(col)) {
         if (!cellsByRow.has(row)) {
           cellsByRow.set(row, []);
@@ -171,14 +268,14 @@ const locateGrid = () => {
     });
   }
 
-  const flatCells = Array.from(board.querySelectorAll(".cell, td, div"));
+  const flatCells = Array.from(board.querySelectorAll(".cell, td[id^='cell_']"));
   if (!flatCells.length) return null;
 
   const cellsByRow = new Map();
   flatCells.forEach((cell) => {
     const parsedId = parseCellId(cell.id);
-    const row = Number(parsedId?.row ?? cell.dataset.row ?? cell.dataset.y ?? cell.getAttribute("data-row"));
-    const col = Number(parsedId?.col ?? cell.dataset.col ?? cell.dataset.x ?? cell.getAttribute("data-col"));
+    const row = Number(parsedId?.second ?? cell.dataset.row ?? cell.dataset.y ?? cell.getAttribute("data-row"));
+    const col = Number(parsedId?.first ?? cell.dataset.col ?? cell.dataset.x ?? cell.getAttribute("data-col"));
     if (Number.isFinite(row) && Number.isFinite(col)) {
       if (!cellsByRow.has(row)) {
         cellsByRow.set(row, []);
