@@ -1,0 +1,17 @@
+{
+  "manifest_version": 3,
+  "name": "Minesweeper Helper",
+  "version": "0.1.0",
+  "description": "Highlight mines, safe cells, and probabilities on minesweeper.online.",
+  "permissions": ["storage"],
+  "host_permissions": ["https://minesweeper.online/*"],
+  "content_scripts": [
+    {
+      "matches": ["https://minesweeper.online/*"],
+      "js": ["content.js"],
+      "css": ["styles.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "options_page": "options.html"
+}
